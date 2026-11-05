@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://pieducation.vn/sitemap.xml
