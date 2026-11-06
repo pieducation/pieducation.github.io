@@ -1,0 +1,60 @@
+name: Cap nhat web
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+concurrency:
+  group: cap-nhat-web
+  cancel-in-progress: false
+env:
+  SHEET_ID: 15DosIrXAzMBj9w3i8jt94QPpAx25wliYsHF79mNRo8o
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lay du lieu tu trang tinh
+        id: data
+        run: |
+          if ! curl -fsSL --retry 2 "https://docs.google.com/spreadsheets/d/$SHEET_ID/export?format=csv" -o /tmp/posts.csv; then
+            echo "Tam thoi khong doc duoc trang tinh, de lan sau."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          new=$(sha256sum /tmp/posts.csv | cut -d' ' -f1)
+          old=$(cat _build/sheet.sha256 2>/dev/null || true)
+          if [ "$new" = "$old" ]; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; echo "$new" > /tmp/new.sha; fi
+      - name: Cai cong cu
+        if: steps.data.outputs.changed == 'true'
+        run: npm install --prefix /tmp/nm --no-audit --no-fund katex@0.16.11 playwright-core@1.48.2
+      - name: Dung web
+        id: build
+        if: steps.data.outputs.changed == 'true'
+        env:
+          NODE_PATH: /tmp/nm/node_modules
+        run: |
+          set +e
+          node build-web.js /tmp/posts.csv
+          code=$?
+          set -e
+          if [ "$code" = "3" ]; then echo "ready=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$code" != "0" ]; then exit "$code"; fi
+          mkdir -p _build
+          cp /tmp/new.sha _build/sheet.sha256
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - name: Luu len repo
+        if: steps.build.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "PiEducation Bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "Khong co gi moi"; exit 0; fi
+          git commit -m "Cap nhat web tu trang tinh"
+          git push
+          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" || true
