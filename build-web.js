@@ -173,4 +173,20 @@ async function main(){
   fs.writeFileSync(stFile,JSON.stringify(ns,null,0)+"\n");
   console.log("Đã dựng "+pubs.length+" bài, tạo "+todo.length+" ảnh xem trước.");
 }
+/* ===== Hình minh họa (thêm 07/11/2026) =====
+   Dòng [[hinh:khoa]] trong bài sẽ được thay bằng hình p.figures[khoa] = {svg, caption}.
+   Đoạn này phải nằm NGAY TRÊN dòng cuối cùng: main().catch(...) */
+var FIG_CUR=null,md_goc=md,webPostPage_goc=webPostPage;
+function figSvg(s){return String(s||"").replace(/<script[\s\S]*?<\/script>/gi,"").replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*')/gi,"").replace(/javascript:/gi,"").replace(/<svg\b/i,'<svg style="display:block;width:100%;max-width:480px;height:auto;margin:0 auto;border:1px solid #e2e0ec;border-radius:12px;background:#fff"')}
+md=function(src){
+  if(!src)return"";
+  var figs=FIG_CUR,F=[];
+  src=String(src).replace(/\r/g,"").replace(/^[ \t]*\[\[hinh:([\w-]+)\]\][ \t]*$/gm,function(_,k){var g=figs&&figs[k];if(!g||!g.svg)return"";F.push(g);return"\n\u0003"+(F.length-1)+"\u0004\n"});
+  return md_goc(src).replace(/<p>\u0003(\d+)\u0004<\/p>/g,function(_,i){
+    var g=F[+i],cap=g.caption?md_goc(g.caption).replace(/^<p>/,"").replace(/<\/p>$/,""):"";
+    return '<figure class="md-fig" style="margin:1.1em 0;text-align:center">'+figSvg(g.svg)+(cap?'<figcaption style="font-size:.85em;line-height:1.5;opacity:.8;max-width:480px;margin:.55em auto 0">'+cap+"</figcaption>":"")+"</figure>";
+  });
+};
+webPostPage=function(p){FIG_CUR=(p&&p.figures)||null;try{return webPostPage_goc(p)}finally{FIG_CUR=null}};
+/* ===== hết phần hình minh họa ===== */
 main().catch(function(e){console.error(e.message||e);process.exit(1)});
